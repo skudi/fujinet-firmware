@@ -34,6 +34,21 @@
     #define Debug_println(...) do { ::printf(__VA_ARGS__); ::printf("\n"); } while (0)
     #define Debug_printv(format, ...) {::printf( ANSI_YELLOW "[%s:%u] %s(): " ANSI_GREEN_BOLD format ANSI_RESET "\r\n", __FILE__, __LINE__, __FUNCTION__, ##__VA_ARGS__);}
     #define Debug_memory() {Debug_printv("Heap[%lu] Low[%lu] Task[%u]", esp_get_free_heap_size(), esp_get_free_internal_heap_size(), uxTaskGetStackHighWaterMark(NULL));}
+#elif defined( FN_DEBUG_TO_STDOUT )
+    // IDF console via stdout; unchecked like Serial.printf, as many callers mismatch formats.
+    #include <cstdarg>
+    #include <cstdio>
+    inline void fn_debug_stdout(const char *format, ...)
+    {
+        va_list args;
+        va_start(args, format);
+        ::vprintf(format, args);
+        va_end(args);
+    }
+    #define Debug_print(...) fn_debug_stdout( __VA_ARGS__ )
+    #define Debug_printf(...) fn_debug_stdout( __VA_ARGS__ )
+    #define Debug_println(...) do { fn_debug_stdout(__VA_ARGS__); fn_debug_stdout("\r\n"); } while (0)
+    #define Debug_printv(format, ...) {fn_debug_stdout( ANSI_YELLOW "[%s:%u] %s(): " ANSI_GREEN_BOLD format ANSI_RESET "\r\n", __FILE__, __LINE__, __FUNCTION__, ##__VA_ARGS__);}
 #else
     #define Debug_print(...) Serial.print( __VA_ARGS__ )
     #define Debug_printf(...) Serial.printf( __VA_ARGS__ )
