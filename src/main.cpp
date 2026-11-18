@@ -20,6 +20,9 @@
   #include "keys.h"
 #endif
 #include "led.h"
+#ifdef ESP_PLATFORM
+#include "StatusDisplay.h"
+#endif
 #include "crypt.h"
 
 #include "fnSystem.h"
@@ -476,6 +479,9 @@ void main_setup(int argc, char *argv[])
 #ifdef ENABLE_DISPLAY
     DISPLAY.start();
 #endif
+
+    static StatusDisplay statusDisplay;
+    statusDisplay.start();
 
 #ifdef ENABLE_CONSOLE
     //Register builtin commands like 'reboot', 'version', or 'meminfo'

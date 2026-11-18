@@ -21,6 +21,8 @@ public:
     void set(eLed led, bool one=true);
     void toggle(eLed led);
     void blink(eLed led, int count=1);
+    // esp_timer time of the last switch-on, so a slow reader can show brief activity
+    int64_t last_on_us(eLed led) const { return mLastOnUs[led]; }
 
 private:
     void applyState(eLed led, bool on);
@@ -31,6 +33,7 @@ private:
 #endif
 
     bool mLedState[eLed::LED_COUNT] = { 0 };
+    volatile int64_t mLastOnUs[eLed::LED_COUNT] = { 0 };
     int mLedPin[eLed::LED_COUNT];
 
     // Activity-driven flicker (e.g. a hard-drive style bus LED). A board's pinmap
