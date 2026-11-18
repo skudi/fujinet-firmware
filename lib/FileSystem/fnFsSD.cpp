@@ -392,6 +392,19 @@ uint64_t FileSystemSDFAT::card_size()
     return _card_capacity;
 }
 
+#ifdef ESP_PLATFORM
+// FATFS drops its ssize member when FF_MIN_SS == FF_MAX_SS (WL sector size 512)
+static uint64_t fat_sector_size(const FATFS *fsinfo)
+{
+#if FF_MAX_SS != FF_MIN_SS
+    return fsinfo->ssize;
+#else
+    (void)fsinfo;
+    return FF_MAX_SS;
+#endif
+}
+#endif
+
 uint64_t FileSystemSDFAT::total_bytes()
 {
     uint64_t size = 0ULL;
@@ -402,7 +415,7 @@ uint64_t FileSystemSDFAT::total_bytes()
 	if (f_getfree("0:", &fre_clust, &fsinfo) == 0)
     {
         // cluster_size * num_clusters * sector_size
-        size = ((uint64_t)(fsinfo->csize)) * (fsinfo->n_fatent - 2) * (fsinfo->ssize);
+        size = ((uint64_t)(fsinfo->csize)) * (fsinfo->n_fatent - 2) * fat_sector_size(fsinfo);
     }
 #endif
 	return size;
@@ -418,7 +431,7 @@ uint64_t FileSystemSDFAT::used_bytes()
 	if(f_getfree("0:", &fre_clust, &fsinfo) == 0)
     {
         // cluster_size * (num_clusters - free_clusters) * sector_size
-	    size = ((uint64_t)(fsinfo->csize)) * ((fsinfo->n_fatent-2)-(fsinfo->free_clst)) * (fsinfo->ssize);
+	    size = ((uint64_t)(fsinfo->csize)) * ((fsinfo->n_fatent-2)-(fsinfo->free_clst)) * fat_sector_size(fsinfo);
     }
 #endif
 	return size;
