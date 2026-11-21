@@ -31,10 +31,10 @@
 /* Atari SIO Pins (EXT header) */
 #define PIN_INT                 GPIO_NUM_3
 #define PIN_PROC                GPIO_NUM_4
-#define PIN_CKO                 GPIO_NUM_5
-#define PIN_CKI                 GPIO_NUM_6
+#define PIN_CKO                 GPIO_NUM_NC
+#define PIN_CKI                 GPIO_NUM_NC
 #define PIN_MTR                 GPIO_NUM_8
-#define PIN_CMD                 GPIO_NUM_9
+#define PIN_CMD                 GPIO_NUM_5
 
 /* Status LCD: ST7789V2, shown landscape */
 #define PIN_LCD_MOSI            GPIO_NUM_35
