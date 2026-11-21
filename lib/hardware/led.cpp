@@ -172,6 +172,9 @@ void LedManager::applyState(eLed led, bool on)
 void LedManager::set(eLed led, bool on)
 {
 #ifdef ESP_PLATFORM
+    if (on)
+        mLastOnUs[led] = esp_timer_get_time();
+
     if (mFlickerIntervalUs[led] > 0)
     {
         // A flickering LED is driven by the timer; set() only marks activity.

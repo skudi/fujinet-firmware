@@ -140,6 +140,7 @@ the owning device or bus.
 | [qrcode/](qrcode/) | QR encoder and `QRManager` | `qrcode/qrcode.c` MIT; manager in-house | yes | yes |
 | [runcpm/](runcpm/) | CP/M emulator, header-only | RunCPM | via users | via users |
 | sam/ | SAM speech synthesis | SAM C port; see its README | yes | yes |
+| [statusDisplay/](statusDisplay/) | status screen for boards whose pinmap declares an LCD | in-house; font from Spleen, BSD-2-Clause | yes | no |
 | [stuffit/](stuffit/) | StuffIt, NDIF and BinHex decoders for the Mac | XADMaster LGPL, ndif2raw BSD | yes | tests |
 | [task/](task/) | cooperative task manager | in-house | no | yes |
 | [tcpip/](tcpip/) | `fnTcpClient`, `fnTcpServer`, `fnUDP`, `fnDNS` | Arduino WiFi ports | yes | yes |
