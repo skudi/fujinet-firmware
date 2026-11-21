@@ -101,7 +101,7 @@ iwm_device_info_block_t iwmDisk::create_dib_reply_packet()
   iwm_device_info_block_t dib;
 
   dib.dev_status = create_status_reply_packet();
-  std::string name = "FUJINET_DISK_" + std::to_string(disk_num);
+  std::string name = "FUJINET_DISK_" + std::string(1, disk_num);
   dib.name_len = std::min(name.size(), sizeof(dib.name));
   std::memcpy(dib.name, name.data(), dib.name_len);
 
@@ -160,7 +160,7 @@ void iwmDisk::iwm_readblock(const iwm_decoded_cmd_t &cmd)
 
   sdstato = BLOCK_DATA_LEN;
   ByteBuffer buffer(sdstato);
-  if (_media->read(cmd.frame.block_rw.num, &sdstato, buffer.data()))
+  if (_media->read(cmd.frame.block_rw.num, &sdstato, buffer.data()).is_error())
   {
     Debug_printf("\r\nFile Seek or Read err: %d bytes", sdstato);
     SYSTEM_BUS.transaction_error(SP_ERR::IOERROR);
@@ -205,16 +205,14 @@ void iwmDisk::iwm_writeblock(const iwm_decoded_cmd_t &cmd)
   uint16_t sdstato = BLOCK_DATA_LEN;
   ByteBuffer buffer(sdstato, 0);
   SYSTEM_BUS.transaction_accept(TRANS_STATE::WILL_GET);
-  SYSTEM_BUS.transaction_get(buffer.data(), buffer.size());
-  _media->write(cmd.frame.block_rw.num, &sdstato, buffer.data());
-
-  if (sdstato != BLOCK_DATA_LEN)
+  if (SYSTEM_BUS.transaction_get(buffer.data(), buffer.size()).is_error()) {
+    SYSTEM_BUS.transaction_error(SP_ERR::NOWRITE);
+    return;
+  }
+  if (_media->write(cmd.frame.block_rw.num, &sdstato, buffer.data()).is_error())
   {
-    Debug_printf("\r\nFile Write err: %d bytes", sdstato);
-    if (sdstato == 0)
-      SYSTEM_BUS.transaction_error(SP_ERR::NOWRITE); // write protected todo: we should probably have a read-only flag that gets set and tested up top
-    else
-      SYSTEM_BUS.transaction_error(SP_ERR::IOERROR);
+    Debug_printf("\r\nFile Write err");
+    SYSTEM_BUS.transaction_error(SP_ERR::IOERROR);
     return;
   }
 
@@ -246,7 +244,7 @@ error_is_true iwmDisk::mount(fnFile *f, const char *filename, uint32_t disksize,
 
   disk_type = MediaType::discover_mediatype(f, filename, disksize, disk_type);
 
-  mount_file(f, disksize, disk_type);
+  disk_type = mount_file(f, disksize, disk_type);
 
   if (disk_type == MEDIATYPE_UNKNOWN) {
       Debug_printf("\r\nMedia Type UNKNOWN - no mount in disk.cpp");
@@ -284,6 +282,7 @@ mediatype_t iwmDisk::mount_file(fnFile *f, uint32_t disksize, mediatype_t disk_t
     default:
       Debug_printf("\r\nUnsupported Media Type for SmartPort");
       disk_type = MEDIATYPE_UNKNOWN;
+      fnio::fclose(f);
       break;
     }
 
@@ -313,8 +312,6 @@ void iwmDisk::unmount()
 {
     if (_media != nullptr)
     {
-        // Clear _media first so the Disk II head-step ISR stops finding the media. An ISR
-        // already inside change_track() on the other core can still race the delete.
         MediaType *media = _media;
         _media = nullptr;
         if (device_active)
@@ -661,15 +658,15 @@ error_is_true iwmDisk::write_blank(fnFile *f, const NewDiskRequest &req)
   }
 
   long volume_start = fnio::ftell(f); // past any 2MG header
-  if (prodos_write_boot_block(f))
+  if (prodos_write_boot_block(f).is_error())
     RETURN_ERROR_AS_TRUE();
-  if (prodos_write_sos_block(f))
+  if (prodos_write_sos_block(f).is_error())
     RETURN_ERROR_AS_TRUE();
-  if (prodos_write_directory_sectors(f, numBlocks, prodos_generate_temp_name()))
+  if (prodos_write_directory_sectors(f, numBlocks, prodos_generate_temp_name()).is_error())
     RETURN_ERROR_AS_TRUE();
-  if (prodos_write_bitmap(f, numBlocks))
+  if (prodos_write_bitmap(f, numBlocks).is_error())
     RETURN_ERROR_AS_TRUE();
-  if (prodos_write_data_blocks(f, numBlocks, volume_start))
+  if (prodos_write_data_blocks(f, numBlocks, volume_start).is_error())
     RETURN_ERROR_AS_TRUE();
 
   Debug_printf("Creation of new ProDOS disk successful.\n");

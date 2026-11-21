@@ -13,6 +13,16 @@
 #include "fujiDevice.h"
 #include "utils.h"
 
+#define SIZE_32K 32_kB
+
+#define R_COCO 0b11000000
+
+enum fujiROMType_t : uint8_t {
+    ROM_TYPE_COCO_32K_FF90    = 0x01 | R_COCO,
+    ROM_TYPE_COCO_64K_FF90    = 0x02 | R_COCO,
+    ROM_TYPE_COCO_128K_FF90   = 0x03 | R_COCO,
+};
+
 // A ROM image isn't served block by block the way a disk is: the whole file
 // goes to the cartridge's DBC at mount time, which presents it to the CoCo
 // as cartridge ROM. Nothing reads it back through the media object afterwards.
@@ -32,7 +42,7 @@ static error_is_true push_rom_image(ROMMedia &rom)
         RETURN_ERROR_AS_TRUE();
     }
 
-    if (!SYSTEM_BUS.sendCommand(FUJI_DEVICEID::DBC, CMD::NET_OPEN, (uint16_t)0))
+    if (!SYSTEM_BUS.sendCommand(FUJI_DEVICEID::DBC, CMD::DBC_SEGMENT_OPEN, (uint16_t)0))
     {
         Debug_printv("Failed to open pico bank");
         RETURN_ERROR_AS_TRUE();
@@ -50,7 +60,7 @@ static error_is_true push_rom_image(ROMMedia &rom)
                              (unsigned long)sent, (unsigned long)imagesize);
             break;
         }
-        if (!SYSTEM_BUS.sendCommand(FUJI_DEVICEID::DBC, CMD::NET_WRITE, blockbuff))
+        if (!SYSTEM_BUS.sendCommand(FUJI_DEVICEID::DBC, CMD::DBC_SEGMENT_WRITE, blockbuff))
         {
             Debug_printv("Failed to send ROM block at %lu of %lu bytes", (unsigned long)sent, (unsigned long)imagesize);
             break;
@@ -58,7 +68,17 @@ static error_is_true push_rom_image(ROMMedia &rom)
         sent += got;
     }
 
-    SYSTEM_BUS.sendCommand(FUJI_DEVICEID::DBC, CMD::NET_CLOSE);
+    // FIXME - Use CMD::DBC_MAPPER_ADD_WINDOW instead of sending ROM type
+    ByteBuffer rtype(1);
+    if (imagesize <= SIZE_32K)
+        rtype[0] = ROM_TYPE_COCO_32K_FF90;
+    else if (imagesize <= 2 * SIZE_32K)
+        rtype[0] = ROM_TYPE_COCO_64K_FF90;
+    else
+        rtype[0] = ROM_TYPE_COCO_128K_FF90;
+    SYSTEM_BUS.sendCommand(FUJI_DEVICEID::DBC, CMD::DBC_MAPPER_SET_INFO, rtype);
+
+    SYSTEM_BUS.sendCommand(FUJI_DEVICEID::DBC, CMD::DBC_SEGMENT_CLOSE);
     Debug_printv("ROM transfer complete: %lu / %lu bytes", (unsigned long)sent, (unsigned long)imagesize);
 
     RETURN_ERROR_IF(sent != imagesize);
@@ -129,6 +149,7 @@ error_is_true drivewireDisk::mount(fnFile *f, const char *filename, uint32_t dis
         break;
     default:
         device_active = false;
+        fnio::fclose(f);
         break;
     }
 
@@ -175,13 +196,18 @@ error_is_true drivewireDisk::read(uint32_t lsn, uint8_t *buf)
     if (_media == nullptr)
         RETURN_ERROR_AS_TRUE();
 
-    bool r = _media->read(lsn,0);
+    if (_media->read(lsn,0).is_error())
+        RETURN_ERROR_AS_TRUE();
+
     // copy data to destination buffer, if provided
     if (buf)
     {
-        memcpy(buf, _media->_media_blockbuff, MEDIA_BLOCK_SIZE);
+        uint8_t *blockbuff;
+        uint16_t blk_size;
+        _media->get_block_buffer(&blockbuff, &blk_size);
+        memcpy(buf, blockbuff, MEDIA_BLOCK_SIZE);
     }
-    RETURN_ERROR_IF(r);
+    RETURN_SUCCESS_AS_FALSE();
 }
 
 error_is_true drivewireDisk::write(uint32_t lsn, uint8_t *buf)
@@ -192,10 +218,11 @@ error_is_true drivewireDisk::write(uint32_t lsn, uint8_t *buf)
         RETURN_ERROR_AS_TRUE();
     }
 
-    memcpy(_media->_media_blockbuff,buf,MEDIA_BLOCK_SIZE);
-    bool r = _media->write(lsn,0);
-
-    RETURN_ERROR_IF(r);
+    uint8_t *blockbuff;
+    uint16_t blk_size;
+    _media->get_block_buffer(&blockbuff, &blk_size);
+    memcpy(blockbuff, buf, MEDIA_BLOCK_SIZE);
+    return _media->write(lsn,0);
 }
 
 void drivewireDisk::get_media_buffer(uint8_t **p_buffer, uint16_t *p_blk_size)
@@ -215,7 +242,7 @@ void drivewireDisk::get_media_buffer(uint8_t **p_buffer, uint16_t *p_blk_size)
 uint8_t drivewireDisk::get_media_status()
 {
     if (!_media)
-        return 3; // ? NO MEDIA
+        return DISK_STATUS_NO_MEDIA;
     return _media->status();
 }
 

@@ -43,6 +43,8 @@ error_is_true adamDisk::mount(fnFile *f, const char *filename, uint32_t disksize
 
     Debug_printf("disk MOUNT %s\n", filename);
 
+    _read_only = !(access_mode & DISK_ACCESS_MODE_WRITE);
+
     // Destroy any existing MediaType
     if (_media != nullptr)
     {
@@ -68,17 +70,19 @@ error_is_true adamDisk::mount(fnFile *f, const char *filename, uint32_t disksize
         mt = _media->mount(f, disksize);
         device_active = true;
         break;
-    case MEDIATYPE_ROM:
-        _media = new MediaTypeROM();
-        mt = _media->mount(f, disksize);
-        device_active = true;
-        break;
     default:
         device_active = false;
+        fnio::fclose(f);
         break;
     }
 
-    RETURN_ERROR_IF(mt == MEDIATYPE_UNKNOWN);
+    if (mt == MEDIATYPE_UNKNOWN)
+    {
+        unmount();
+        RETURN_ERROR_AS_TRUE();
+    }
+
+    RETURN_SUCCESS_AS_FALSE();
 }
 
 void adamDisk::unmount()
@@ -135,7 +139,7 @@ void adamDisk::adamnet_control_send_block_num(const FujiAdamPacket &packet)
 
     Debug_printf("BLOCK: %lu\n", blockNum);
 
-    if (blockNum == 0xFACE)
+    if (blockNum == 0xFACE && !_read_only)
     {
         _media->format(NULL);
     }
@@ -154,11 +158,15 @@ void adamDisk::adamnet_control_send_block_data()
         return;
 
     SYSTEM_BUS.transaction_accept(TRANS_STATE::WILL_GET);
-    SYSTEM_BUS.transaction_get(_media->_media_blockbuff, DDP_BLOCK_SIZE);
-
-    if (is_config_device)
+    if (SYSTEM_BUS.transaction_get(_media->_media_blockbuff, DDP_BLOCK_SIZE).is_error())
     {
-        Debug_printf("Refusing spurious write to read-only config device, block %lu\n", blockNum);
+        SYSTEM_BUS.transaction_error();
+        return;
+    }
+
+    if (is_config_device || _read_only)
+    {
+        Debug_printf("Refusing write to read-only disk, block %lu\n", blockNum);
         blockNum = 0xFFFFFFFF;
         _media->_media_last_block = 0xFFFFFFFE;
         SYSTEM_BUS.transaction_error();
@@ -167,10 +175,15 @@ void adamDisk::adamnet_control_send_block_data()
 
     Debug_printf("Block Data Write\n");
 
-    _media->write(blockNum, false);
+    error_is_true result = _media->write(blockNum, false);
 
     blockNum = 0xFFFFFFFF;
     _media->_media_last_block = 0xFFFFFFFE;
+    if (result.is_error())
+    {
+        SYSTEM_BUS.transaction_error();
+        return;
+    }
     SYSTEM_BUS.transaction_success();
 }
 

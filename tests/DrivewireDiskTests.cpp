@@ -318,6 +318,20 @@ TEST_CASE("a VDK write lands in its sector, and one past the end is refused")
     check_closed_once(disk, file);
 }
 
+TEST_CASE("a VDK write to a read-only mount is refused")
+{
+    auto image = vdk_sectors(4);
+    MemFile file(image);
+    drivewireDisk disk;
+    REQUIRE(disk.mount(&file, VDK_TEST_FILE, image.size(), DISK_ACCESS_MODE_READ)
+           .is_success());
+
+    CHECK(write_filled(disk, 2, 0x77).is_error());
+    CHECK(disk.get_media_status() == EOF_STATUS);
+    CHECK(file.contents() == image);
+    check_closed_once(disk, file);
+}
+
 TEST_CASE("an MRM reads in 32K blocks, padding the last with $FF")
 {
     auto image = make_image(MRM_BLOCK + 300);
@@ -407,6 +421,22 @@ TEST_CASE("a .cas holding no file doesn't mount, and its image is closed")
     CHECK_FALSE(disk.device_active);
     CHECK(disk.mediatype() == MEDIATYPE_UNKNOWN);
     CHECK(file.closes == 1);
+    disk.unmount();
+    CHECK(file.closes == 1);
+}
+
+TEST_CASE("an image with an unknown extension doesn't mount, and its image is closed")
+{
+    std::vector<uint8_t> image(512, 0);
+    MemFile file(image);
+    drivewireDisk disk;
+
+    CHECK(disk.mount(&file, "drivewire_disk_test.xyz", image.size(), DISK_ACCESS_MODE_READ)
+         .is_error());
+    CHECK_FALSE(disk.device_active);
+    CHECK(disk.mediatype() == MEDIATYPE_UNKNOWN);
+    CHECK(file.closes == 1);
+    CHECK_FALSE(file.usedAfterClose);
     disk.unmount();
     CHECK(file.closes == 1);
 }
