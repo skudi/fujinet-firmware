@@ -57,8 +57,12 @@ RUNCPM_DECL int _SelectDisk(uint8 dr) {
 	}
 
 	disk[0] += dr;
+	const uint16 drive_bit = 1 << (disk[0] - 'A');
+	if (loginVector & drive_bit)
+		return(0x00);
+
 	if (_sys_select(&disk[0])) {
-		loginVector = loginVector | (1 << (disk[0] - 'A'));
+		loginVector = loginVector | drive_bit;
 		result = 0x00;
 	} else {
 		_error(errSELECT);
@@ -314,9 +318,10 @@ RUNCPM_DECL uint8 _CloseFile(uint16 fcbaddr) {
 	uint8 result = 0xff;
 
 	if (!_SelectDisk(F->dr)) {
+		_FCBtoHostname(fcbaddr, &filename[0]);
+		_sys_closefile(&filename[0]);
 		if (!(F->s2 & 0x80)) {					// if file is modified
 			if (!RW) {
-				_FCBtoHostname(fcbaddr, &filename[0]);
 				if (fcbaddr == BatchFCB)
 					_Truncate((char*)filename, F->rc);	// Truncate $$$.SUB to F->rc CP/M records so SUBMIT.COM can work
 				result = 0x00;
@@ -415,8 +420,12 @@ RUNCPM_DECL uint8 _DeleteFile(uint16 fcbaddr) {
 				}
 #endif
 				_FCBtoHostname(tmpFCB, &filename[0]);
-				if (_sys_deletefile(&filename[0]))
+				if (_sys_deletefile(&filename[0]).is_success()) {
 					deleted = 0x00;
+				} else {
+					_error(errWRITEPROT);
+					break;
+				}
 				result = _SearchFirst(fcbaddr, FALSE);	// FALSE = Does not create a fake dir entry when finding the file
 			}
 		} else {
@@ -436,7 +445,7 @@ RUNCPM_DECL uint8 _RenameFile(uint16 fcbaddr) {
 			_RamWrite(fcbaddr + 16, _RamRead(fcbaddr));	// Prevents rename from moving files among folders
 			_FCBtoHostname(fcbaddr + 16, &newname[0]);
 			_FCBtoHostname(fcbaddr, &filename[0]);
-			if (_sys_renamefile(&filename[0], &newname[0]))
+			if (_sys_renamefile(&filename[0], &newname[0]).is_success())
 				result = 0x00;
 		} else {
 			_error(errWRITEPROT);

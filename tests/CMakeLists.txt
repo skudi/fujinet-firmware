@@ -366,7 +366,7 @@ target_include_directories(file_size_tests PRIVATE
 add_test(NAME file_size_tests COMMAND file_size_tests)
 
 # ------------------------------------------------------------------------------
-# The ADAM DDP, DSK and ROM media bounds, built like mediatypeimg_tests above.
+# The ADAM DDP and DSK media bounds, built like mediatypeimg_tests above.
 # FLASH_SPIFFS and fnFsSPIFFS.cpp provide the fsFlash the high-score writes name.
 # Not on Windows: the FNIO_IS_STDIO paths use FILE::_flags and fsync().
 # ------------------------------------------------------------------------------
@@ -376,7 +376,6 @@ if(NOT WIN32)
       ${CMAKE_SOURCE_DIR}/lib/media/adam/mediaType.cpp
       ${CMAKE_SOURCE_DIR}/lib/media/adam/mediaTypeDDP.cpp
       ${CMAKE_SOURCE_DIR}/lib/media/adam/mediaTypeDSK.cpp
-      ${CMAKE_SOURCE_DIR}/lib/media/adam/mediaTypeROM.cpp
       ${CMAKE_SOURCE_DIR}/lib/FileSystem/fnFS.cpp
       ${CMAKE_SOURCE_DIR}/lib/FileSystem/fnDirCache.cpp
       ${CMAKE_SOURCE_DIR}/lib/FileSystem/fnFsSPIFFS.cpp
@@ -848,7 +847,6 @@ if(FUJINET_TARGET STREQUAL "ADAM")
     ${CMAKE_SOURCE_DIR}/lib/media/adam/mediaType.cpp
     ${CMAKE_SOURCE_DIR}/lib/media/adam/mediaTypeDDP.cpp
     ${CMAKE_SOURCE_DIR}/lib/media/adam/mediaTypeDSK.cpp
-    ${CMAKE_SOURCE_DIR}/lib/media/adam/mediaTypeROM.cpp
     ${CMAKE_SOURCE_DIR}/lib/bus/DaisyChain.cpp
     ${CMAKE_SOURCE_DIR}/lib/FileSystem/fnFS.cpp
     ${CMAKE_SOURCE_DIR}/lib/FileSystem/fnDirCache.cpp
@@ -1800,3 +1798,33 @@ if(UNIX)
       $<TARGET_FILE:mg_http_completion_probe>)
   set_tests_properties(mg_http_completion_tests PROPERTIES TIMEOUT 25)
 endif()
+
+# ------------------------------------------------------------------------------
+# RunCPM's FujiNet disk layer (lib/runcpm/abstraction_fujinet_disk.h) over a
+# local directory through FileSystemSDFAT. See fssd_listing_tests above.
+# ------------------------------------------------------------------------------
+add_executable(runcpm_disk_tests
+    RunCPMDiskTests.cpp
+    ${CMAKE_SOURCE_DIR}/lib/FileSystem/fnFS.cpp
+    ${CMAKE_SOURCE_DIR}/lib/FileSystem/fnFsSD.cpp
+    ${CMAKE_SOURCE_DIR}/lib/FileSystem/fnDirCache.cpp
+)
+if(NOT CMAKE_SYSTEM_NAME STREQUAL "Darwin")
+  target_sources(runcpm_disk_tests PRIVATE
+      ${CMAKE_SOURCE_DIR}/lib/compat/strlcpy.c
+      ${CMAKE_SOURCE_DIR}/lib/compat/strlcat.c
+  )
+endif()
+
+target_compile_definitions(runcpm_disk_tests PRIVATE UNIT_TESTS FNIO_IS_STDIO)
+
+target_include_directories(runcpm_disk_tests PRIVATE
+    ${CMAKE_SOURCE_DIR}/include/      # debug.h, global_types.h
+    ${CMAKE_SOURCE_DIR}/lib/runcpm/
+    ${CMAKE_SOURCE_DIR}/lib/FileSystem/
+    ${CMAKE_SOURCE_DIR}/lib/compat/
+    ${CMAKE_SOURCE_DIR}/lib/utils/
+    ${CMAKE_SOURCE_DIR}/components_pc/
+)
+
+add_test(NAME runcpm_disk_tests COMMAND runcpm_disk_tests)
