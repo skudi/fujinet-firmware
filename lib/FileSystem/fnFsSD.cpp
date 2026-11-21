@@ -20,6 +20,7 @@
 #include "compat_string.h"
 
 #include <algorithm>
+#include <string>
 #include <memory>
 #include <vector>
 
@@ -131,6 +132,7 @@ success_is_true FileSystemSDFAT::fill_dircache(const char *path)
 {
 #ifndef ESP_PLATFORM
     Debug_printf("FileSystemSDFAT::fill_dircache \"%s\"\n", path);
+    std::string dir_path;
 #endif
 
 #ifdef ESP_PLATFORM
@@ -141,6 +143,7 @@ success_is_true FileSystemSDFAT::fill_dircache(const char *path)
     char * fpath = _make_fullpath(path);
     Debug_printf("FileSystemSDFAT::fill_dircache - opendir \"%s\"\n", fpath);
     _dir = opendir(fpath);
+    dir_path = fpath;
     free(fpath);
     if(_dir == nullptr)
         RETURN_ERROR_AS_FALSE();
@@ -193,13 +196,12 @@ success_is_true FileSystemSDFAT::fill_dircache(const char *path)
 
         uint32_t size = 0;
         time_t modified_time = 0;
-        fpath = _make_fullpath(d->d_name);
-        if(stat(fpath, &s) == 0)
+        std::string entry_path = dir_path + "/" + d->d_name;
+        if(stat(entry_path.c_str(), &s) == 0)
         {
             size = s.st_size;
             modified_time = s.st_mtime;
         }
-        free(fpath);
         // Assume symlinks point to directories only
         if (_dircache->add_entry(d->d_name, d->d_type == DT_DIR || d->d_type == DT_LNK, size, modified_time).is_error())
         {
@@ -392,6 +394,19 @@ uint64_t FileSystemSDFAT::card_size()
     return _card_capacity;
 }
 
+#ifdef ESP_PLATFORM
+// FATFS drops its ssize member when FF_MIN_SS == FF_MAX_SS (WL sector size 512)
+static uint64_t fat_sector_size(const FATFS *fsinfo)
+{
+#if FF_MAX_SS != FF_MIN_SS
+    return fsinfo->ssize;
+#else
+    (void)fsinfo;
+    return FF_MAX_SS;
+#endif
+}
+#endif
+
 uint64_t FileSystemSDFAT::total_bytes()
 {
     uint64_t size = 0ULL;
@@ -402,7 +417,7 @@ uint64_t FileSystemSDFAT::total_bytes()
 	if (f_getfree("0:", &fre_clust, &fsinfo) == 0)
     {
         // cluster_size * num_clusters * sector_size
-        size = ((uint64_t)(fsinfo->csize)) * (fsinfo->n_fatent - 2) * (fsinfo->ssize);
+        size = ((uint64_t)(fsinfo->csize)) * (fsinfo->n_fatent - 2) * fat_sector_size(fsinfo);
     }
 #endif
 	return size;
@@ -418,7 +433,7 @@ uint64_t FileSystemSDFAT::used_bytes()
 	if(f_getfree("0:", &fre_clust, &fsinfo) == 0)
     {
         // cluster_size * (num_clusters - free_clusters) * sector_size
-	    size = ((uint64_t)(fsinfo->csize)) * ((fsinfo->n_fatent-2)-(fsinfo->free_clst)) * (fsinfo->ssize);
+	    size = ((uint64_t)(fsinfo->csize)) * ((fsinfo->n_fatent-2)-(fsinfo->free_clst)) * fat_sector_size(fsinfo);
     }
 #endif
 	return size;
