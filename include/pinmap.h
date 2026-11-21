@@ -30,6 +30,7 @@
 #include "pinmap/heathkit_h89.h"
 #include "pinmap/atari2600.h"
 #include "pinmap/esp32s3-xdrive.h"
+#include "pinmap/esp32s3-cardputer-adv.h"
 #include "pinmap/fujiversal-drivewire.h"
 #include "pinmap/fujiversal-rs232.h"
 #include "pinmap/fujiversal-intv.h"
