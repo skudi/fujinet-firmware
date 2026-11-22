@@ -104,8 +104,8 @@ void systemBus::transaction_send(const void *data, size_t len, bool is_error)
     Debug_printf("->SIO write %hu bytes\n", len);
 #ifdef VERBOSE_SIO
     Debug_printf("SEND <%u> BYTES\n\t", len);
-    for (int i = 0; i < len; i++)
-        Debug_printf("%02x ", buf[i]);
+    for (size_t idx = 0; idx < len; idx++)
+        Debug_printf("%02x ", static_cast<const uint8_t *>(data)[idx]);
     Debug_print("\n");
 #endif
 
