@@ -33,7 +33,7 @@
 #define PIN_PROC                GPIO_NUM_4
 #define PIN_CKO                 GPIO_NUM_NC
 #define PIN_CKI                 GPIO_NUM_NC
-#define PIN_MTR                 GPIO_NUM_8
+#define PIN_MTR                 GPIO_NUM_6
 #define PIN_CMD                 GPIO_NUM_5
 
 /* Status LCD: ST7789V2, shown landscape */
