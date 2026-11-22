@@ -121,7 +121,7 @@ void ESP32UARTChannel::updateFIFO()
 {
     uart_event_t event;
 
-    while (_uart_q && xQueueReceive(_uart_q, &event, 1))
+    while (_uart_q && xQueueReceive(_uart_q, &event, 0))
     {
         if (event.type == UART_DATA)
         {
